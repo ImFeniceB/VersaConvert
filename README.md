@@ -2,6 +2,7 @@
   <img src="src/VersaConvert.App/Assets/VersaConvert.svg" width="96" alt="Logo VersaConvert">
   <h1>VersaConvert</h1>
   <p><strong>Ogni file, nel formato giusto. In locale.</strong></p>
+  <p><a href="https://github.com/ImFeniceB/VersaConvert/actions/workflows/build.yml"><img src="https://github.com/ImFeniceB/VersaConvert/actions/workflows/build.yml/badge.svg" alt="Build"></a></p>
 </div>
 
 VersaConvert è un convertitore di file desktop per Windows. Seleziona uno o più file, mostra solo i formati di uscita realmente compatibili e converte tutto sul computer, senza caricamenti su servizi esterni.
@@ -60,7 +61,7 @@ Requisiti per lo sviluppo:
 - PowerShell 7 o Windows PowerShell 5.1.
 
 ```powershell
-git clone <URL-DEL-REPOSITORY>
+git clone https://github.com/ImFeniceB/VersaConvert.git
 cd VersaConvert
 dotnet test VersaConvert.sln -c Release
 ./scripts/build-release.ps1
