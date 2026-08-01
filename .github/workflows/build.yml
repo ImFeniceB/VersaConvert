@@ -1,0 +1,23 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore VersaConvert.sln
+      - name: Build
+        run: dotnet build VersaConvert.sln -c Release --no-restore
+      - name: Test
+        run: dotnet test VersaConvert.sln -c Release --no-build
