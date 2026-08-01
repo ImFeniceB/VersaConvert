@@ -7,6 +7,7 @@ public sealed record ConversionFormat(
     string Description)
 {
     public string NormalizedExtension => Extension.TrimStart('.').ToLowerInvariant();
+    public string DisplayExtension => NormalizedExtension.ToUpperInvariant();
 
     public override string ToString() => $"{DisplayName} (.{NormalizedExtension})";
 }

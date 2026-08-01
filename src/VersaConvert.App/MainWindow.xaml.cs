@@ -16,6 +16,9 @@ public partial class MainWindow : Window
     private readonly ConversionService _conversionService = new();
     private CancellationTokenSource? _conversionCancellation;
     private bool _isConverting;
+    private IReadOnlyList<ConversionFormat> _availableFormats = [];
+    private IReadOnlyList<ConversionFormat> _visibleFormats = [];
+    private ConversionFormat? _selectedFormat;
 
     public MainWindow()
     {
@@ -112,13 +115,13 @@ public partial class MainWindow : Window
 
     private void RefreshFormats()
     {
-        var previousExtension = (FormatComboBox.SelectedItem as ConversionFormat)?.NormalizedExtension;
-        var formats = _catalog.GetCommonOutputs(Jobs.Select(job => job.InputPath));
-        FormatComboBox.ItemsSource = formats;
-        FormatComboBox.SelectedItem = formats.FirstOrDefault(format =>
-            format.NormalizedExtension.Equals(previousExtension, StringComparison.OrdinalIgnoreCase)) ?? formats.FirstOrDefault();
+        var previousExtension = _selectedFormat?.NormalizedExtension;
+        _availableFormats = _catalog.GetCommonOutputs(Jobs.Select(job => job.InputPath));
+        SetSelectedFormat(_availableFormats.FirstOrDefault(format =>
+            format.NormalizedExtension.Equals(previousExtension, StringComparison.OrdinalIgnoreCase)) ?? _availableFormats.FirstOrDefault());
+        ApplyFormatFilter();
 
-        if (Jobs.Count > 0 && formats.Count == 0)
+        if (Jobs.Count > 0 && _availableFormats.Count == 0)
         {
             OverallStatusText.Text = "I file selezionati non condividono un formato di uscita";
         }
@@ -126,7 +129,7 @@ public partial class MainWindow : Window
 
     private async void ConvertButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_isConverting || FormatComboBox.SelectedItem is not ConversionFormat format)
+        if (_isConverting || _selectedFormat is not ConversionFormat format)
         {
             return;
         }
@@ -266,7 +269,7 @@ public partial class MainWindow : Window
     {
         AddFilesButton.IsEnabled = !isConverting;
         ClearButton.IsEnabled = !isConverting;
-        FormatComboBox.IsEnabled = !isConverting;
+        FormatPickerButton.IsEnabled = !isConverting;
         OutputDirectoryTextBox.IsEnabled = !isConverting;
         QualitySlider.IsEnabled = !isConverting;
         BitrateComboBox.IsEnabled = !isConverting;
@@ -283,7 +286,8 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         FileCountText.Text = Jobs.Count == 1 ? "1 FILE" : $"{Jobs.Count} FILE";
         ClearButton.IsEnabled = Jobs.Count > 0 && !_isConverting;
-        ConvertButton.IsEnabled = Jobs.Count > 0 && FormatComboBox.SelectedItem is not null && !_isConverting &&
+        FormatPickerButton.IsEnabled = Jobs.Count > 0 && _availableFormats.Count > 0 && !_isConverting;
+        ConvertButton.IsEnabled = Jobs.Count > 0 && _selectedFormat is not null && !_isConverting &&
                                   !string.IsNullOrWhiteSpace(OutputDirectoryTextBox.Text);
         OpenOutputButton.IsEnabled = !string.IsNullOrWhiteSpace(OutputDirectoryTextBox.Text);
     }
@@ -373,6 +377,88 @@ public partial class MainWindow : Window
         if (QualityValueText is not null) QualityValueText.Text = $"{e.NewValue:0}%";
     }
 
-    private void FormatComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e) => UpdateInterfaceState();
+    private void FormatPickerPopup_Opened(object? sender, EventArgs e)
+    {
+        FormatSearchTextBox.Clear();
+        ApplyFormatFilter();
+        FormatSearchTextBox.Focus();
+        Keyboard.Focus(FormatSearchTextBox);
+    }
+
+    private void FormatSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        if (FormatSearchPlaceholder is null) return;
+
+        FormatSearchPlaceholder.Visibility = string.IsNullOrEmpty(FormatSearchTextBox.Text)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        ApplyFormatFilter();
+    }
+
+    private void FormatSearchTextBox_PreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            FormatPickerButton.IsChecked = false;
+            FormatPickerButton.Focus();
+            e.Handled = true;
+            return;
+        }
+
+        if (e.Key == Key.Enter && _visibleFormats.FirstOrDefault() is { } firstFormat)
+        {
+            SetSelectedFormat(firstFormat);
+            FormatPickerButton.IsChecked = false;
+            FormatPickerButton.Focus();
+            e.Handled = true;
+        }
+    }
+
+    private void FormatOptionButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ConversionFormat format }) return;
+        SetSelectedFormat(format);
+        FormatPickerButton.IsChecked = false;
+        FormatPickerButton.Focus();
+    }
+
+    private void SetSelectedFormat(ConversionFormat? format)
+    {
+        _selectedFormat = format;
+        SelectedFormatExtensionText.Text = format?.DisplayExtension ?? "—";
+        SelectedFormatNameText.Text = format?.DisplayName ?? "Nessun formato";
+        FormatDescriptionText.Text = format?.Description ?? "Aggiungi un file per vedere i formati compatibili.";
+        FormatPickerButton.ToolTip = format is null
+            ? "Aggiungi un file per scegliere il formato di uscita."
+            : $"Formato selezionato: {format.DisplayName} (.{format.NormalizedExtension})";
+        UpdateInterfaceState();
+    }
+
+    private void ApplyFormatFilter()
+    {
+        if (FormatOptionsItemsControl is null || FormatSearchTextBox is null) return;
+
+        var query = FormatSearchTextBox.Text.Trim();
+        _visibleFormats = string.IsNullOrWhiteSpace(query)
+            ? _availableFormats
+            : _availableFormats.Where(format =>
+                format.DisplayName.Contains(query, StringComparison.CurrentCultureIgnoreCase) ||
+                format.NormalizedExtension.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                format.Description.Contains(query, StringComparison.CurrentCultureIgnoreCase)).ToArray();
+
+        FormatOptionsItemsControl.ItemsSource = _visibleFormats.Select(format =>
+            new FormatPickerItem(
+                format,
+                format.NormalizedExtension.Equals(_selectedFormat?.NormalizedExtension, StringComparison.OrdinalIgnoreCase)));
+        FormatResultCountText.Text = _visibleFormats.Count == 1 ? "1 FORMATO" : $"{_visibleFormats.Count} FORMATI";
+        FormatEmptyText.Visibility = _visibleFormats.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void OutputDirectoryTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateInterfaceState();
+
+    private sealed record FormatPickerItem(ConversionFormat Format, bool IsSelected)
+    {
+        public string DisplayExtension => Format.DisplayExtension;
+        public string Tooltip => $"{Format.DisplayName} — {Format.Description}";
+    }
 }

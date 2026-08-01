@@ -2,6 +2,12 @@
 
 Il progetto segue [Semantic Versioning](https://semver.org/).
 
+## 1.1.0 — 2026-08-01
+
+- nuovo selettore dei formati con ricerca e griglia compatta;
+- evidenza del formato selezionato e descrizioni contestuali;
+- selezione rapida da tastiera con Invio ed Esc.
+
 ## 1.0.0 — 2026-08-01
 
 - prima versione pubblica;

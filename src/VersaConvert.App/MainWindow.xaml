@@ -17,6 +17,89 @@
         Drop="Window_Drop"
         DragEnter="Window_DragEnter"
         Closing="Window_Closing">
+    <Window.Resources>
+        <Style x:Key="FormatPickerTrigger" TargetType="ToggleButton">
+            <Setter Property="Background" Value="#0E1628" />
+            <Setter Property="Foreground" Value="{StaticResource TextBrush}" />
+            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="10,8" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border x:Name="PickerBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="9"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="PickerBorder" Property="Background" Value="#172238" />
+                                <Setter TargetName="PickerBorder" Property="BorderBrush" Value="#53698F" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="PickerBorder" Property="BorderBrush" Value="#A99AFF" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="PickerBorder" Property="Background" Value="#172238" />
+                                <Setter TargetName="PickerBorder" Property="BorderBrush" Value="#7564CC" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="PickerBorder" Property="Opacity" Value="0.42" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="FormatChoiceButton" TargetType="Button">
+            <Setter Property="Height" Value="48" />
+            <Setter Property="Margin" Value="4" />
+            <Setter Property="Padding" Value="8" />
+            <Setter Property="Background" Value="#202C43" />
+            <Setter Property="Foreground" Value="#DCE4F2" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="ChoiceBorder"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="8"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Background" Value="#30405D" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsKeyboardFocused" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Background" Value="#3A4A69" />
+                                <Setter Property="Foreground" Value="White" />
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Opacity" Value="0.72" />
+                            </Trigger>
+                            <DataTrigger Binding="{Binding IsSelected}" Value="True">
+                                <Setter TargetName="ChoiceBorder" Property="Background" Value="#5C48BC" />
+                                <Setter Property="Foreground" Value="White" />
+                            </DataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="86" />
@@ -157,8 +240,153 @@
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Impostazioni" />
 
                             <TextBlock Margin="0,18,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="FORMATO DI USCITA" />
-                            <ComboBox x:Name="FormatComboBox" DisplayMemberPath="DisplayName" SelectionChanged="FormatComboBox_SelectionChanged" />
-                            <TextBlock Margin="2,7,0,0" FontSize="10" LineHeight="15" TextWrapping="Wrap" Foreground="{StaticResource MutedTextBrush}" Text="{Binding SelectedItem.Description, ElementName=FormatComboBox}" />
+                            <ToggleButton x:Name="FormatPickerButton"
+                                          Style="{StaticResource FormatPickerTrigger}"
+                                          IsChecked="{Binding IsOpen, ElementName=FormatPickerPopup, Mode=TwoWay}"
+                                          AutomationProperties.Name="Scegli il formato di uscita">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="46" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="18" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="40" Height="31" HorizontalAlignment="Left" Background="#342B68" CornerRadius="7">
+                                        <TextBlock x:Name="SelectedFormatExtensionText"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#D8D1FF"
+                                                   Text="—" />
+                                    </Border>
+                                    <TextBlock x:Name="SelectedFormatNameText"
+                                               Grid.Column="1"
+                                               Margin="4,0,8,0"
+                                               VerticalAlignment="Center"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Text="Nessun formato" />
+                                    <Path Grid.Column="2"
+                                          Width="9"
+                                          Height="6"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Data="M 0,0 L 4.5,5 L 9,0"
+                                          Stroke="#A9B5CA"
+                                          StrokeThickness="1.5"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round" />
+                                </Grid>
+                            </ToggleButton>
+                            <TextBlock x:Name="FormatDescriptionText"
+                                       Margin="2,7,0,0"
+                                       FontSize="10"
+                                       LineHeight="15"
+                                       TextWrapping="Wrap"
+                                       Foreground="{StaticResource MutedTextBrush}"
+                                       Text="Aggiungi un file per vedere i formati compatibili." />
+
+                            <Popup x:Name="FormatPickerPopup"
+                                   Placement="Bottom"
+                                   PlacementTarget="{Binding ElementName=FormatPickerButton}"
+                                   HorizontalOffset="-108"
+                                   VerticalOffset="7"
+                                   AllowsTransparency="True"
+                                   StaysOpen="False"
+                                   PopupAnimation="Fade"
+                                   Opened="FormatPickerPopup_Opened">
+                                <Border Width="405"
+                                        MaxHeight="388"
+                                        Margin="14"
+                                        Padding="16"
+                                        Background="#151E31"
+                                        CornerRadius="13"
+                                        SnapsToDevicePixels="True">
+                                    <Border.Effect>
+                                        <DropShadowEffect BlurRadius="22" Direction="270" ShadowDepth="8" Opacity="0.5" Color="#050914" />
+                                    </Border.Effect>
+                                    <Grid>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="*" />
+                                        </Grid.RowDefinitions>
+
+                                        <Grid Margin="2,0,2,12">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock FontSize="14" FontWeight="SemiBold" Text="Scegli il formato" />
+                                            <TextBlock x:Name="FormatResultCountText"
+                                                       Grid.Column="1"
+                                                       VerticalAlignment="Center"
+                                                       FontSize="10"
+                                                       FontWeight="SemiBold"
+                                                       Foreground="#A99AFF"
+                                                       Text="0 FORMATI" />
+                                        </Grid>
+
+                                        <Grid Grid.Row="1" Margin="0,0,0,10">
+                                            <TextBox x:Name="FormatSearchTextBox"
+                                                     Height="40"
+                                                     Padding="34,9,10,9"
+                                                     VerticalContentAlignment="Center"
+                                                     TextChanged="FormatSearchTextBox_TextChanged"
+                                                     PreviewKeyDown="FormatSearchTextBox_PreviewKeyDown"
+                                                     AutomationProperties.Name="Cerca un formato" />
+                                            <Path Width="14"
+                                                  Height="14"
+                                                  Margin="12,0,0,0"
+                                                  HorizontalAlignment="Left"
+                                                  VerticalAlignment="Center"
+                                                  IsHitTestVisible="False"
+                                                  Data="M 11,11 L 15,15 M 13,7 A 6,6 0 1 1 1,7 A 6,6 0 1 1 13,7"
+                                                  Stroke="#8290A8"
+                                                  StrokeThickness="1.5"
+                                                  StrokeStartLineCap="Round" />
+                                            <TextBlock x:Name="FormatSearchPlaceholder"
+                                                       Margin="34,0,10,0"
+                                                       VerticalAlignment="Center"
+                                                       IsHitTestVisible="False"
+                                                       FontSize="12"
+                                                       Foreground="#8290A8"
+                                                       Text="Cerca formato…" />
+                                        </Grid>
+
+                                        <Grid Grid.Row="2">
+                                            <ScrollViewer MaxHeight="264" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                                <ItemsControl x:Name="FormatOptionsItemsControl">
+                                                    <ItemsControl.ItemsPanel>
+                                                        <ItemsPanelTemplate>
+                                                            <UniformGrid Columns="4" />
+                                                        </ItemsPanelTemplate>
+                                                    </ItemsControl.ItemsPanel>
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <Button Style="{StaticResource FormatChoiceButton}"
+                                                                    Tag="{Binding Format}"
+                                                                    Content="{Binding DisplayExtension}"
+                                                                    ToolTip="{Binding Tooltip}"
+                                                                    Click="FormatOptionButton_Click" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </ScrollViewer>
+                                            <TextBlock x:Name="FormatEmptyText"
+                                                       Margin="18,28"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       TextAlignment="Center"
+                                                       TextWrapping="Wrap"
+                                                       FontSize="12"
+                                                       Foreground="{StaticResource MutedTextBrush}"
+                                                       Text="Nessun formato corrisponde alla ricerca."
+                                                       Visibility="Collapsed" />
+                                        </Grid>
+                                    </Grid>
+                                </Border>
+                            </Popup>
 
                             <TextBlock Margin="0,17,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="CARTELLA DI DESTINAZIONE" />
                             <Grid>
