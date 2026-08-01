@@ -2,6 +2,14 @@
 
 Il progetto segue [Semantic Versioning](https://semver.org/).
 
+## 1.2.0 — 2026-08-01
+
+- stile più rounded per pannelli, pulsanti, campi, menu e indicatori;
+- feedback di pressione e hover più morbidi sui controlli interattivi;
+- picker dei formati animato dal suo punto di apertura;
+- nuova superficie animata durante il trascinamento dei file;
+- rispetto dell'impostazione Windows per la riduzione delle animazioni.
+
 ## 1.1.0 — 2026-08-01
 
 - nuovo selettore dei formati con ricerca e griglia compatta;

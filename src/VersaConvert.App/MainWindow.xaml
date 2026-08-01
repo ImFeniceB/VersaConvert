@@ -16,6 +16,8 @@
         AllowDrop="True"
         Drop="Window_Drop"
         DragEnter="Window_DragEnter"
+        DragOver="Window_DragOver"
+        DragLeave="Window_DragLeave"
         Closing="Window_Closing">
     <Window.Resources>
         <Style x:Key="FormatPickerTrigger" TargetType="ToggleButton">
@@ -32,7 +34,7 @@
                                 Background="{TemplateBinding Background}"
                                 BorderBrush="{TemplateBinding BorderBrush}"
                                 BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="9"
+                                CornerRadius="12"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
                                               VerticalAlignment="Center" />
@@ -73,7 +75,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="ChoiceBorder"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="8"
+                                CornerRadius="11"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Border>
@@ -139,7 +141,7 @@
                 <ColumnDefinition Width="330" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" CornerRadius="15" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
+            <Border Grid.Column="0" CornerRadius="16" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1">
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="58" />
@@ -175,7 +177,7 @@
                             </ListView.ItemContainerStyle>
                             <ListView.ItemTemplate>
                                 <DataTemplate DataType="{x:Type models:ConversionJob}">
-                                    <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="11" Padding="13,11" BorderBrush="#22304B" BorderThickness="1">
+                                    <Border Background="{StaticResource PanelRaisedBrush}" CornerRadius="14" Padding="13,11" BorderBrush="#22304B" BorderThickness="1">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="48" />
@@ -219,7 +221,7 @@
                             </ListView.ItemTemplate>
                         </ListView>
 
-                        <Border x:Name="EmptyState" Margin="20" CornerRadius="12" BorderBrush="#344261" BorderThickness="1" Background="#0E1628">
+                        <Border x:Name="EmptyState" Margin="20" CornerRadius="16" BorderBrush="#344261" BorderThickness="1" Background="#0E1628">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="390">
                                 <Border Width="70" Height="70" CornerRadius="35" Background="#202B4A" HorizontalAlignment="Center">
                                     <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="29" Foreground="#BFB5FF" Text="⇧" />
@@ -229,13 +231,46 @@
                                 <Button Style="{StaticResource SecondaryButton}" Margin="0,18,0,0" Padding="16,9" HorizontalAlignment="Center" Click="AddFilesButton_Click" Content="Sfoglia file" />
                             </StackPanel>
                         </Border>
+
+                        <Border x:Name="DropFeedbackOverlay"
+                                Panel.ZIndex="10"
+                                Margin="10"
+                                Padding="24"
+                                Background="#F0182440"
+                                BorderBrush="#8D7BFF"
+                                BorderThickness="1"
+                                CornerRadius="16"
+                                IsHitTestVisible="False"
+                                Opacity="0"
+                                RenderTransformOrigin="0.5,0.5"
+                                Visibility="Collapsed">
+                            <Border.RenderTransform>
+                                <ScaleTransform x:Name="DropFeedbackScale" ScaleX="1" ScaleY="1" />
+                            </Border.RenderTransform>
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Width="68" Height="68" HorizontalAlignment="Center" Background="#493B99" CornerRadius="16">
+                                    <Path Width="30"
+                                          Height="30"
+                                          HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"
+                                          Data="M 15,3 L 15,20 M 8,13 L 15,20 L 22,13 M 5,26 L 25,26"
+                                          Stroke="White"
+                                          StrokeThickness="2.2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round" />
+                                </Border>
+                                <TextBlock Margin="0,17,0,0" HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="Rilascia per aggiungere" />
+                                <TextBlock Margin="0,6,0,0" HorizontalAlignment="Center" FontSize="12" Foreground="#B8C5DB" Text="Puoi aggiungere più file contemporaneamente" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Grid>
             </Border>
 
             <ScrollViewer Grid.Column="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                 <StackPanel>
-                    <Border CornerRadius="15" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="18">
+                    <Border CornerRadius="16" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="18">
                         <StackPanel>
                             <TextBlock FontSize="15" FontWeight="SemiBold" Text="Impostazioni" />
 
@@ -243,6 +278,8 @@
                             <ToggleButton x:Name="FormatPickerButton"
                                           Style="{StaticResource FormatPickerTrigger}"
                                           IsChecked="{Binding IsOpen, ElementName=FormatPickerPopup, Mode=TwoWay}"
+                                          PreviewMouseLeftButtonDown="FormatPickerButton_PreviewMouseLeftButtonDown"
+                                          PreviewKeyDown="FormatPickerButton_PreviewKeyDown"
                                           AutomationProperties.Name="Scegli il formato di uscita">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -293,15 +330,20 @@
                                    VerticalOffset="7"
                                    AllowsTransparency="True"
                                    StaysOpen="False"
-                                   PopupAnimation="Fade"
+                                   PopupAnimation="None"
                                    Opened="FormatPickerPopup_Opened">
-                                <Border Width="405"
+                                <Border x:Name="FormatPickerSurface"
+                                        Width="405"
                                         MaxHeight="388"
                                         Margin="14"
                                         Padding="16"
                                         Background="#151E31"
-                                        CornerRadius="13"
+                                        CornerRadius="16"
+                                        RenderTransformOrigin="0.74,0"
                                         SnapsToDevicePixels="True">
+                                    <Border.RenderTransform>
+                                        <ScaleTransform x:Name="FormatPickerScale" ScaleX="1" ScaleY="1" />
+                                    </Border.RenderTransform>
                                     <Border.Effect>
                                         <DropShadowEffect BlurRadius="22" Direction="270" ShadowDepth="8" Opacity="0.5" Color="#050914" />
                                     </Border.Effect>
@@ -368,6 +410,8 @@
                                                                     Tag="{Binding Format}"
                                                                     Content="{Binding DisplayExtension}"
                                                                     ToolTip="{Binding Tooltip}"
+                                                                    MouseEnter="FormatChoiceButton_MouseEnter"
+                                                                    MouseLeave="FormatChoiceButton_MouseLeave"
                                                                     Click="FormatOptionButton_Click" />
                                                         </DataTemplate>
                                                     </ItemsControl.ItemTemplate>
@@ -427,7 +471,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="0,12,0,0" CornerRadius="13" Background="#10192B" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14">
+                    <Border Margin="0,12,0,0" CornerRadius="16" Background="#10192B" BorderBrush="{StaticResource BorderBrush}" BorderThickness="1" Padding="14">
                         <StackPanel>
                             <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="MOTORI DI CONVERSIONE" />
                             <Grid Margin="0,10,0,0">

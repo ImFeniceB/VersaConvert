@@ -3,7 +3,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using VersaConvert.Core.Models;
 using VersaConvert.Core.Services;
@@ -19,11 +22,16 @@ public partial class MainWindow : Window
     private IReadOnlyList<ConversionFormat> _availableFormats = [];
     private IReadOnlyList<ConversionFormat> _visibleFormats = [];
     private ConversionFormat? _selectedFormat;
+    private bool _animateNextFormatPickerOpen;
+    private bool _isDropFeedbackHiding;
+    private int _dropFeedbackAnimationVersion;
 
     public MainWindow()
     {
         InitializeComponent();
         DataContext = this;
+        AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler(Window_PreviewMouseDown), handledEventsToo: true);
+        AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(Window_PreviewMouseUp), handledEventsToo: true);
         OutputDirectoryTextBox.Text = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
             "VersaConvert");
@@ -360,12 +368,24 @@ public partial class MainWindow : Window
 
     private void Window_DragEnter(object sender, System.Windows.DragEventArgs e)
     {
-        e.Effects = e.Data.GetDataPresent(DataFormats.FileDrop) ? DragDropEffects.Copy : DragDropEffects.None;
+        var canAccept = !_isConverting && e.Data.GetDataPresent(DataFormats.FileDrop);
+        e.Effects = canAccept ? DragDropEffects.Copy : DragDropEffects.None;
+        if (canAccept) ShowDropFeedback();
+        else HideDropFeedback();
+        e.Handled = true;
+    }
+
+    private void Window_DragOver(object sender, System.Windows.DragEventArgs e) => Window_DragEnter(sender, e);
+
+    private void Window_DragLeave(object sender, System.Windows.DragEventArgs e)
+    {
+        HideDropFeedback();
         e.Handled = true;
     }
 
     private void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
+        HideDropFeedback();
         if (_isConverting || !e.Data.GetDataPresent(DataFormats.FileDrop)) return;
         if (e.Data.GetData(DataFormats.FileDrop) is string[] paths) AddPaths(paths);
     }
@@ -379,10 +399,36 @@ public partial class MainWindow : Window
 
     private void FormatPickerPopup_Opened(object? sender, EventArgs e)
     {
+        if (_animateNextFormatPickerOpen && AnimationsEnabled)
+        {
+            AnimateFormatPickerOpen();
+        }
+        else
+        {
+            ResetFormatPickerMotion();
+        }
+
+        _animateNextFormatPickerOpen = false;
         FormatSearchTextBox.Clear();
         ApplyFormatFilter();
         FormatSearchTextBox.Focus();
         Keyboard.Focus(FormatSearchTextBox);
+    }
+
+    private void FormatPickerButton_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) =>
+        _animateNextFormatPickerOpen = FormatPickerButton.IsChecked != true;
+
+    private void FormatPickerButton_PreviewKeyDown(object sender, KeyEventArgs e) =>
+        _animateNextFormatPickerOpen = false;
+
+    private void FormatChoiceButton_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (AnimationsEnabled && sender is Button button) AnimateButtonScale(button, 1.012, 120);
+    }
+
+    private void FormatChoiceButton_MouseLeave(object sender, MouseEventArgs e)
+    {
+        if (AnimationsEnabled && sender is Button button) AnimateButtonScale(button, 1, 110);
     }
 
     private void FormatSearchTextBox_TextChanged(object sender, TextChangedEventArgs e)
@@ -455,6 +501,154 @@ public partial class MainWindow : Window
     }
 
     private void OutputDirectoryTextBox_TextChanged(object sender, TextChangedEventArgs e) => UpdateInterfaceState();
+
+    private static bool AnimationsEnabled => SystemParameters.ClientAreaAnimation;
+
+    private void Window_PreviewMouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (!AnimationsEnabled || e.ChangedButton != MouseButton.Left) return;
+        if (FindButton(e.OriginalSource as DependencyObject) is { IsEnabled: true } button && button.Name != "DropDownToggle")
+        {
+            AnimateButtonScale(button, 0.975, 80);
+        }
+    }
+
+    private void Window_PreviewMouseUp(object sender, MouseButtonEventArgs e)
+    {
+        if (!AnimationsEnabled || e.ChangedButton != MouseButton.Left) return;
+        if (FindButton(e.OriginalSource as DependencyObject) is { } button && button.Name != "DropDownToggle")
+        {
+            var restingScale = button.Tag is ConversionFormat && button.IsMouseOver ? 1.012 : 1;
+            AnimateButtonScale(button, restingScale, 130);
+        }
+    }
+
+    private static ButtonBase? FindButton(DependencyObject? source)
+    {
+        while (source is not null)
+        {
+            if (source is ButtonBase button) return button;
+            source = source is Visual
+                ? VisualTreeHelper.GetParent(source)
+                : LogicalTreeHelper.GetParent(source);
+        }
+
+        return null;
+    }
+
+    private static void AnimateButtonScale(ButtonBase button, double target, int durationMilliseconds)
+    {
+        if (button.RenderTransform is not ScaleTransform scale)
+        {
+            scale = new ScaleTransform(1, 1);
+            button.RenderTransform = scale;
+            button.RenderTransformOrigin = new Point(0.5, 0.5);
+        }
+
+        AnimateScale(scale, target, durationMilliseconds);
+    }
+
+    private void AnimateFormatPickerOpen()
+    {
+        ResetFormatPickerMotion();
+        FormatPickerSurface.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(0.55, 1, 180, FillBehavior.Stop));
+        FormatPickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(0.96, 1, 180, FillBehavior.Stop));
+        FormatPickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateAnimation(0.96, 1, 180, FillBehavior.Stop));
+    }
+
+    private void ResetFormatPickerMotion()
+    {
+        FormatPickerSurface.BeginAnimation(UIElement.OpacityProperty, null);
+        FormatPickerScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        FormatPickerScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        FormatPickerSurface.Opacity = 1;
+        FormatPickerScale.ScaleX = 1;
+        FormatPickerScale.ScaleY = 1;
+    }
+
+    private void ShowDropFeedback()
+    {
+        var wasVisible = DropFeedbackOverlay.Visibility == Visibility.Visible;
+        if (wasVisible && !_isDropFeedbackHiding) return;
+
+        ++_dropFeedbackAnimationVersion;
+        _isDropFeedbackHiding = false;
+        DropFeedbackOverlay.Visibility = Visibility.Visible;
+        DropFeedbackOverlay.BeginAnimation(UIElement.OpacityProperty, null);
+        DropFeedbackScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        DropFeedbackScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+
+        if (wasVisible)
+        {
+            DropFeedbackOverlay.Opacity = 1;
+            DropFeedbackScale.ScaleX = 1;
+            DropFeedbackScale.ScaleY = 1;
+            return;
+        }
+
+        if (!AnimationsEnabled)
+        {
+            DropFeedbackOverlay.Opacity = 1;
+            DropFeedbackScale.ScaleX = 1;
+            DropFeedbackScale.ScaleY = 1;
+            return;
+        }
+
+        DropFeedbackOverlay.Opacity = 1;
+        DropFeedbackScale.ScaleX = 1;
+        DropFeedbackScale.ScaleY = 1;
+        DropFeedbackOverlay.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(0.2, 1, 170, FillBehavior.Stop));
+        DropFeedbackScale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(0.985, 1, 200, FillBehavior.Stop));
+        DropFeedbackScale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateAnimation(0.985, 1, 200, FillBehavior.Stop));
+    }
+
+    private void HideDropFeedback()
+    {
+        if (DropFeedbackOverlay.Visibility != Visibility.Visible) return;
+
+        var animationVersion = ++_dropFeedbackAnimationVersion;
+        _isDropFeedbackHiding = true;
+        if (!AnimationsEnabled)
+        {
+            DropFeedbackOverlay.Visibility = Visibility.Collapsed;
+            DropFeedbackOverlay.Opacity = 0;
+            _isDropFeedbackHiding = false;
+            return;
+        }
+
+        var fadeOut = CreateAnimation(null, 0, 110, FillBehavior.Stop);
+        fadeOut.Completed += (_, _) =>
+        {
+            if (animationVersion != _dropFeedbackAnimationVersion) return;
+            DropFeedbackOverlay.Visibility = Visibility.Collapsed;
+            DropFeedbackOverlay.Opacity = 0;
+            _isDropFeedbackHiding = false;
+        };
+        DropFeedbackOverlay.BeginAnimation(UIElement.OpacityProperty, fadeOut);
+    }
+
+    private static void AnimateScale(ScaleTransform scale, double target, int durationMilliseconds)
+    {
+        scale.BeginAnimation(ScaleTransform.ScaleXProperty, CreateAnimation(null, target, durationMilliseconds));
+        scale.BeginAnimation(ScaleTransform.ScaleYProperty, CreateAnimation(null, target, durationMilliseconds));
+    }
+
+    private static DoubleAnimation CreateAnimation(
+        double? from,
+        double to,
+        int durationMilliseconds,
+        FillBehavior fillBehavior = FillBehavior.HoldEnd)
+    {
+        var animation = new DoubleAnimation
+        {
+            To = to,
+            Duration = TimeSpan.FromMilliseconds(durationMilliseconds),
+            EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut },
+            FillBehavior = fillBehavior
+        };
+        if (from is double fromValue) animation.From = fromValue;
+        return animation;
+    }
 
     private sealed record FormatPickerItem(ConversionFormat Format, bool IsSelected)
     {
