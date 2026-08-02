@@ -2,6 +2,17 @@
 
 Il progetto segue [Semantic Versioning](https://semver.org/).
 
+## 1.3.0 — 2026-08-02
+
+- preset Bilanciato, Qualità massima, Dimensione ridotta e Personalizzato;
+- qualità e bitrate mostrati solo per i formati che li utilizzano;
+- preflight con formato, destinazione, motori richiesti e gestione delle collisioni;
+- conferma esplicita prima di sovrascrivere file esistenti;
+- azioni per aprire l'output o riprovare una singola conversione;
+- riepilogo finale con nuovo tentativo collettivo per errori, annullamenti e file saltati;
+- scorciatoie `Ctrl+O`, `Ctrl+Invio`, `Canc` ed `Esc`;
+- etichette di automazione, stato live e animazione conclusiva rispettosa delle preferenze Windows.
+
 ## 1.2.0 — 2026-08-01
 
 - stile più rounded per pannelli, pulsanti, campi, menu e indicatori;

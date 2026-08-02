@@ -6,7 +6,7 @@
     <RootNamespace>VersaConvert.App</RootNamespace>
     <AssemblyName>VersaConvert</AssemblyName>
     <ApplicationIcon>Assets\VersaConvert.ico</ApplicationIcon>
-    <Version>1.2.0</Version>
+    <Version>1.3.0</Version>
     <Authors>VersaConvert contributors</Authors>
     <Description>Convertitore universale di file, locale e open source.</Description>
     <Product>VersaConvert</Product>

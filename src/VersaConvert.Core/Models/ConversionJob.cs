@@ -27,8 +27,17 @@ public sealed class ConversionJob : INotifyPropertyChanged
     public string? OutputPath
     {
         get => _outputPath;
-        set => SetField(ref _outputPath, value);
+        set
+        {
+            if (SetField(ref _outputPath, value))
+            {
+                OnPropertyChanged(nameof(HasOutput));
+            }
+        }
     }
+
+    public bool HasOutput => Status == JobStatus.Completed && !string.IsNullOrWhiteSpace(OutputPath);
+    public bool CanRetry => Status is JobStatus.Failed or JobStatus.Cancelled or JobStatus.Skipped;
 
     public JobStatus Status
     {
@@ -38,6 +47,8 @@ public sealed class ConversionJob : INotifyPropertyChanged
             if (SetField(ref _status, value))
             {
                 OnPropertyChanged(nameof(StatusDisplay));
+                OnPropertyChanged(nameof(HasOutput));
+                OnPropertyChanged(nameof(CanRetry));
             }
         }
     }

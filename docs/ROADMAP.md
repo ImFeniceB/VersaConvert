@@ -1,19 +1,19 @@
 # Roadmap
 
-## 1.1 — Documenti avanzati
+## Documenti avanzati
 
 - PDF verso PNG/JPEG;
 - immagini verso PDF;
 - OCR locale opzionale con Tesseract;
 - profili di esportazione PDF.
 
-## 1.2 — Archivi ed ebook
+## Archivi ed ebook
 
 - ZIP, TAR e 7Z;
 - EPUB e formati ebook aperti;
 - anteprima dei contenuti prima della conversione.
 
-## 1.3 — Produttività
+## Produttività
 
 - profili salvati;
 - osservazione automatica di una cartella;

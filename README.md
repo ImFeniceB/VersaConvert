@@ -14,9 +14,12 @@ Il caso d’uso principale — **MP4 → MP3** — funziona direttamente nella b
 - conversione in coda di uno o più file;
 - trascinamento di file e cartelle nella finestra;
 - elenco dinamico dei formati compatibili con tutti i file selezionati;
+- picker dei formati con ricerca rapida;
 - video, estrazione audio, immagini, testo e documenti Office;
-- qualità, bitrate audio, metadati e gestione dei nomi duplicati;
-- avanzamento per file, annullamento e messaggi di errore leggibili;
+- preset intelligenti e impostazioni mostrate solo quando sono rilevanti;
+- preflight con destinazione, collisioni e motori richiesti prima dell'avvio;
+- avanzamento per file, annullamento, apertura dell'output e nuovo tentativo sugli errori;
+- scorciatoie da tastiera e feedback visivi rispettosi delle preferenze di Windows;
 - elaborazione interamente locale;
 - singolo eseguibile Windows x64, senza installazione di .NET.
 
@@ -41,8 +44,10 @@ La matrice completa e le limitazioni note sono in [docs/FORMATI.md](docs/FORMATI
 1. Scarica `VersaConvert.exe` dalla sezione **Releases** del repository.
 2. Avvia l’EXE; non serve installare .NET o FFmpeg.
 3. Trascina i file nella finestra oppure premi **Aggiungi file**.
-4. Scegli il formato, la cartella e le opzioni.
+4. Scegli il formato, la cartella e un preset; il preflight riepiloga il risultato.
 5. Premi **Converti ora**.
+
+Scorciatoie principali: `Ctrl+O` aggiunge file, `Ctrl+Invio` avvia la conversione, `Canc` rimuove il file selezionato ed `Esc` chiude il picker o annulla l'operazione in corso.
 
 Windows potrebbe mostrare un avviso SmartScreen per una build non firmata. Il codice è pubblico e l’hash SHA-256 viene prodotto insieme a ogni release.
 

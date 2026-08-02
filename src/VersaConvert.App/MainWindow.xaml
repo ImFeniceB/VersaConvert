@@ -18,6 +18,7 @@
         DragEnter="Window_DragEnter"
         DragOver="Window_DragOver"
         DragLeave="Window_DragLeave"
+        PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing">
     <Window.Resources>
         <Style x:Key="FormatPickerTrigger" TargetType="ToggleButton">
@@ -128,8 +129,8 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="ClearButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,11" Click="ClearButton_Click" Content="Svuota" />
-                    <Button x:Name="AddFilesButton" Style="{StaticResource PrimaryButton}" Padding="18,11" Click="AddFilesButton_Click" Content="＋  Aggiungi file" />
+                    <Button x:Name="ClearButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,11" Click="ClearButton_Click" Content="Svuota" AutomationProperties.Name="Svuota la coda" />
+                    <Button x:Name="AddFilesButton" Style="{StaticResource PrimaryButton}" Padding="18,11" Click="AddFilesButton_Click" Content="Aggiungi file" ToolTip="Aggiungi file (Ctrl+O)" AutomationProperties.Name="Aggiungi file" AutomationProperties.HelpText="Scorciatoia Ctrl+O" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -172,7 +173,8 @@
                                     <Setter Property="BorderThickness" Value="0" />
                                     <Setter Property="Padding" Value="0" />
                                     <Setter Property="Margin" Value="0,0,0,8" />
-                                    <Setter Property="Focusable" Value="False" />
+                                    <Setter Property="Focusable" Value="True" />
+                                    <Setter Property="AutomationProperties.Name" Value="{Binding FileName}" />
                                 </Style>
                             </ListView.ItemContainerStyle>
                             <ListView.ItemTemplate>
@@ -183,7 +185,7 @@
                                                 <ColumnDefinition Width="48" />
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="118" />
-                                                <ColumnDefinition Width="38" />
+                                                <ColumnDefinition Width="106" />
                                             </Grid.ColumnDefinitions>
                                             <Border Width="38" Height="38" CornerRadius="9" Background="#2A3560" VerticalAlignment="Top">
                                                 <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="10" FontWeight="Bold" Foreground="#C9C0FF" Text="{Binding ExtensionDisplay}" />
@@ -191,7 +193,7 @@
                                             <StackPanel Grid.Column="1" Margin="3,0,14,0">
                                                 <TextBlock FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" Text="{Binding FileName}" ToolTip="{Binding InputPath}" />
                                                 <TextBlock Margin="0,4,0,7" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="{Binding SizeDisplay}" />
-                                                <ProgressBar Style="{StaticResource ThinProgress}" Value="{Binding Progress}" />
+                                                <ProgressBar Style="{StaticResource ThinProgress}" Value="{Binding Progress}" AutomationProperties.Name="Avanzamento file" />
                                             </StackPanel>
                                             <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                                 <TextBlock HorizontalAlignment="Right" FontSize="11" FontWeight="SemiBold" Text="{Binding StatusDisplay}">
@@ -214,7 +216,37 @@
                                                 </TextBlock>
                                                 <TextBlock Margin="0,4,0,0" HorizontalAlignment="Right" FontSize="10" Foreground="{StaticResource MutedTextBrush}" TextTrimming="CharacterEllipsis" MaxWidth="115" Text="{Binding Message}" ToolTip="{Binding Message}" />
                                             </StackPanel>
-                                            <Button Grid.Column="3" Style="{StaticResource IconButton}" Margin="8,0,0,0" VerticalAlignment="Center" Tag="{Binding}" Click="RemoveJobButton_Click" Content="×" ToolTip="Rimuovi" />
+                                            <StackPanel Grid.Column="3" Margin="8,0,0,0" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                                                <Button Width="30" Height="30" Margin="0,0,4,0" Padding="7" Tag="{Binding}" Click="OpenJobOutputButton_Click" ToolTip="Mostra il file convertito" AutomationProperties.Name="Mostra il file convertito">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding HasOutput}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Path Width="14" Height="14" Data="M 2,5 L 6,5 L 7.5,7 L 14,7 L 14,13 L 2,13 Z M 9,2 L 14,2 L 14,5 M 14,2 L 8,8" Stroke="#DCE4F2" StrokeThickness="1.5" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                                </Button>
+                                                <Button Width="30" Height="30" Margin="0,0,4,0" Padding="7" Tag="{Binding}" Click="RetryJobButton_Click" ToolTip="Riprova questo file" AutomationProperties.Name="Riprova questo file">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Visibility" Value="Collapsed" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanRetry}" Value="True">
+                                                                    <Setter Property="Visibility" Value="Visible" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Path Width="14" Height="14" Data="M 12.5,5 A 5.5,5.5 0 1 0 13,9 M 12.5,2 L 12.5,5 L 9.5,5" Stroke="#DCE4F2" StrokeThickness="1.6" Fill="Transparent" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
+                                                </Button>
+                                                <Button Width="30" Height="30" Style="{StaticResource IconButton}" Padding="7" Tag="{Binding}" Click="RemoveJobButton_Click" ToolTip="Rimuovi dalla coda (Canc)" AutomationProperties.Name="Rimuovi dalla coda">
+                                                    <Path Width="12" Height="12" Data="M 2,2 L 10,10 M 10,2 L 2,10" Stroke="#DCE4F2" StrokeThickness="1.7" StrokeStartLineCap="Round" />
+                                                </Button>
+                                            </StackPanel>
                                         </Grid>
                                     </Border>
                                 </DataTemplate>
@@ -223,12 +255,12 @@
 
                         <Border x:Name="EmptyState" Margin="20" CornerRadius="16" BorderBrush="#344261" BorderThickness="1" Background="#0E1628">
                             <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" MaxWidth="390">
-                                <Border Width="70" Height="70" CornerRadius="35" Background="#202B4A" HorizontalAlignment="Center">
-                                    <TextBlock HorizontalAlignment="Center" VerticalAlignment="Center" FontSize="29" Foreground="#BFB5FF" Text="⇧" />
+                                <Border Width="70" Height="70" CornerRadius="16" Background="#202B4A" HorizontalAlignment="Center">
+                                    <Path Width="30" Height="30" Data="M 15,4 L 15,21 M 8,12 L 15,5 L 22,12 M 5,25 L 25,25" Stroke="#BFB5FF" StrokeThickness="2.2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" />
                                 </Border>
                                 <TextBlock Margin="0,18,0,0" HorizontalAlignment="Center" FontSize="18" FontWeight="SemiBold" Text="Trascina qui i tuoi file" />
                                 <TextBlock Margin="0,8,0,0" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" FontSize="12" LineHeight="18" Foreground="{StaticResource MutedTextBrush}" Text="Video, audio, immagini, testo e documenti. I formati compatibili appariranno automaticamente." />
-                                <Button Style="{StaticResource SecondaryButton}" Margin="0,18,0,0" Padding="16,9" HorizontalAlignment="Center" Click="AddFilesButton_Click" Content="Sfoglia file" />
+                                <Button Style="{StaticResource SecondaryButton}" Margin="0,18,0,0" Padding="16,9" HorizontalAlignment="Center" Click="AddFilesButton_Click" Content="Sfoglia file" AutomationProperties.Name="Sfoglia file" />
                             </StackPanel>
                         </Border>
 
@@ -410,6 +442,7 @@
                                                                     Tag="{Binding Format}"
                                                                     Content="{Binding DisplayExtension}"
                                                                     ToolTip="{Binding Tooltip}"
+                                                                    AutomationProperties.Name="{Binding Tooltip}"
                                                                     MouseEnter="FormatChoiceButton_MouseEnter"
                                                                     MouseLeave="FormatChoiceButton_MouseLeave"
                                                                     Click="FormatOptionButton_Click" />
@@ -432,42 +465,76 @@
                                 </Border>
                             </Popup>
 
+                            <StackPanel x:Name="PresetSettingsPanel" Margin="0,17,0,0">
+                                <TextBlock Margin="0,0,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="PRESET" />
+                                <ComboBox x:Name="PresetComboBox"
+                                          SelectedIndex="0"
+                                          SelectionChanged="PresetComboBox_SelectionChanged"
+                                          AutomationProperties.Name="Preset di conversione">
+                                    <ComboBoxItem Tag="Balanced" Content="Bilanciato" />
+                                    <ComboBoxItem Tag="Maximum" Content="Qualità massima" />
+                                    <ComboBoxItem Tag="Compact" Content="Dimensione ridotta" />
+                                    <ComboBoxItem Tag="Custom" Content="Personalizzato" />
+                                </ComboBox>
+                                <TextBlock x:Name="PresetDescriptionText"
+                                           Margin="2,6,0,0"
+                                           FontSize="10"
+                                           LineHeight="15"
+                                           TextWrapping="Wrap"
+                                           Foreground="{StaticResource MutedTextBrush}"
+                                           Text="Un buon equilibrio tra qualità e dimensione." />
+                            </StackPanel>
+
                             <TextBlock Margin="0,17,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="CARTELLA DI DESTINAZIONE" />
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="42" />
                                 </Grid.ColumnDefinitions>
-                                <TextBox x:Name="OutputDirectoryTextBox" VerticalContentAlignment="Center" TextChanged="OutputDirectoryTextBox_TextChanged" />
-                                <Button Grid.Column="1" Style="{StaticResource IconButton}" Margin="6,0,0,0" Click="BrowseOutputButton_Click" Content="…" ToolTip="Scegli cartella" />
+                                <TextBox x:Name="OutputDirectoryTextBox" VerticalContentAlignment="Center" TextChanged="OutputDirectoryTextBox_TextChanged" AutomationProperties.Name="Cartella di destinazione" />
+                                <Button Grid.Column="1" Style="{StaticResource IconButton}" Margin="6,0,0,0" Padding="9" Click="BrowseOutputButton_Click" ToolTip="Scegli cartella" AutomationProperties.Name="Scegli la cartella di destinazione">
+                                    <Path Width="15" Height="13" Data="M 1.5,4 L 6,4 L 7.5,6 L 14.5,6 L 14.5,12 L 1.5,12 Z M 1.5,4 L 1.5,2 L 6,2 L 7.5,4" Stroke="#DCE4F2" StrokeThickness="1.4" Fill="Transparent" StrokeLineJoin="Round" />
+                                </Button>
                             </Grid>
 
-                            <Grid Margin="0,18,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*" />
-                                    <ColumnDefinition Width="Auto" />
-                                </Grid.ColumnDefinitions>
-                                <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="QUALITÀ" />
-                                <TextBlock x:Name="QualityValueText" Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="#C9C0FF" Text="75%" />
-                            </Grid>
-                            <Slider x:Name="QualitySlider" Margin="0,6,0,0" Minimum="1" Maximum="100" Value="75" TickFrequency="1" ValueChanged="QualitySlider_ValueChanged" />
+                            <StackPanel x:Name="QualitySettingsPanel" Margin="0,18,0,0">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="QUALITÀ" />
+                                    <TextBlock x:Name="QualityValueText" Grid.Column="1" FontSize="11" FontWeight="SemiBold" Foreground="#C9C0FF" Text="75%" />
+                                </Grid>
+                                <Slider x:Name="QualitySlider" Margin="0,6,0,0" Minimum="1" Maximum="100" Value="75" TickFrequency="1" ValueChanged="QualitySlider_ValueChanged" AutomationProperties.Name="Qualità di conversione" />
+                            </StackPanel>
 
-                            <TextBlock Margin="0,15,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="BITRATE AUDIO" />
-                            <ComboBox x:Name="BitrateComboBox" SelectedIndex="2">
-                                <ComboBoxItem Tag="128" Content="128 kbps — compatto" />
-                                <ComboBoxItem Tag="192" Content="192 kbps — bilanciato" />
-                                <ComboBoxItem Tag="256" Content="256 kbps — alta qualità" />
-                                <ComboBoxItem Tag="320" Content="320 kbps — massimo" />
-                            </ComboBox>
+                            <StackPanel x:Name="BitrateSettingsPanel" Margin="0,15,0,0">
+                                <TextBlock Margin="0,0,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="BITRATE AUDIO" />
+                                <ComboBox x:Name="BitrateComboBox" SelectedIndex="1" SelectionChanged="BitrateComboBox_SelectionChanged" AutomationProperties.Name="Bitrate audio">
+                                    <ComboBoxItem Tag="128" Content="128 kbps — compatto" />
+                                    <ComboBoxItem Tag="192" Content="192 kbps — bilanciato" />
+                                    <ComboBoxItem Tag="256" Content="256 kbps — alta qualità" />
+                                    <ComboBoxItem Tag="320" Content="320 kbps — massimo" />
+                                </ComboBox>
+                            </StackPanel>
 
                             <TextBlock Margin="0,15,0,7" FontSize="11" FontWeight="SemiBold" Foreground="{StaticResource MutedTextBrush}" Text="SE IL FILE ESISTE" />
-                            <ComboBox x:Name="CollisionComboBox" SelectedIndex="0">
+                            <ComboBox x:Name="CollisionComboBox" SelectedIndex="0" SelectionChanged="CollisionComboBox_SelectionChanged" AutomationProperties.Name="Comportamento se il file esiste">
                                 <ComboBoxItem Tag="Rename" Content="Crea un nuovo nome" />
                                 <ComboBoxItem Tag="Overwrite" Content="Sovrascrivi" />
                                 <ComboBoxItem Tag="Skip" Content="Salta" />
                             </ComboBox>
 
-                            <CheckBox x:Name="PreserveMetadataCheckBox" Margin="0,17,0,0" IsChecked="True" Content="Conserva i metadati quando possibile" />
+                            <CheckBox x:Name="PreserveMetadataCheckBox" Margin="0,17,0,0" IsChecked="True" Content="Conserva i metadati quando possibile" AutomationProperties.Name="Conserva i metadati" />
+
+                            <Border x:Name="PreflightBorder" Margin="0,18,0,0" Padding="13" CornerRadius="12" Background="#18253A">
+                                <StackPanel>
+                                    <TextBlock x:Name="PreflightTitleText" FontSize="12" FontWeight="SemiBold" Text="In attesa dei file" />
+                                    <TextBlock x:Name="PreflightSummaryText" Margin="0,4,0,0" FontSize="10" LineHeight="15" TextWrapping="Wrap" Foreground="#B8C5DB" Text="Aggiungi almeno un file per preparare la conversione." />
+                                    <TextBlock x:Name="PreflightWarningText" Margin="0,6,0,0" FontSize="10" LineHeight="15" TextWrapping="Wrap" Foreground="#FCA5A5" Visibility="Collapsed" />
+                                </StackPanel>
+                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -508,15 +575,20 @@
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="OverallStatusText" FontSize="12" FontWeight="SemiBold" Text="Aggiungi uno o più file per iniziare" />
+                        <TextBlock x:Name="OverallStatusText" FontSize="12" FontWeight="SemiBold" Text="Aggiungi uno o più file per iniziare" AutomationProperties.LiveSetting="Polite">
+                            <TextBlock.RenderTransform>
+                                <TranslateTransform x:Name="OverallStatusTranslate" />
+                            </TextBlock.RenderTransform>
+                        </TextBlock>
                         <TextBlock x:Name="OverallPercentText" Grid.Column="1" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="0%" />
                     </Grid>
-                    <ProgressBar x:Name="OverallProgressBar" Style="{StaticResource ThinProgress}" Margin="0,9,0,0" Height="7" Value="0" />
+                    <ProgressBar x:Name="OverallProgressBar" Style="{StaticResource ThinProgress}" Margin="0,9,0,0" Height="7" Value="0" AutomationProperties.Name="Avanzamento complessivo" />
                 </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button x:Name="OpenOutputButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,12" Click="OpenOutputButton_Click" Content="Apri cartella" />
-                    <Button x:Name="CancelButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,12" Click="CancelButton_Click" Content="Annulla" Visibility="Collapsed" />
-                    <Button x:Name="ConvertButton" Style="{StaticResource PrimaryButton}" MinWidth="150" Padding="22,12" Click="ConvertButton_Click" Content="Converti ora  →" IsEnabled="False" />
+                    <Button x:Name="RetryFailedButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,12" Click="RetryFailedButton_Click" Content="Riprova" Visibility="Collapsed" AutomationProperties.Name="Riprova i file non riusciti" />
+                    <Button x:Name="OpenOutputButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,12" Click="OpenOutputButton_Click" Content="Apri cartella" AutomationProperties.Name="Apri la cartella di destinazione" />
+                    <Button x:Name="CancelButton" Style="{StaticResource SecondaryButton}" Margin="0,0,10,0" Padding="16,12" Click="CancelButton_Click" Content="Annulla" Visibility="Collapsed" AutomationProperties.Name="Annulla la conversione" />
+                    <Button x:Name="ConvertButton" Style="{StaticResource PrimaryButton}" MinWidth="150" Padding="22,12" Click="ConvertButton_Click" Content="Converti ora" IsEnabled="False" ToolTipService.ShowOnDisabled="True" AutomationProperties.Name="Avvia la conversione" AutomationProperties.HelpText="Scorciatoia Ctrl+Invio" />
                 </StackPanel>
             </Grid>
         </Border>
