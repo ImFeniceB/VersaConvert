@@ -101,6 +101,11 @@
                 </Setter.Value>
             </Setter>
         </Style>
+
+        <Style x:Key="QueueUtilityButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="Padding" Value="10,6" />
+            <Setter Property="FontSize" Value="11" />
+        </Style>
     </Window.Resources>
 
     <Grid>
@@ -154,9 +159,19 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" Text="File in coda" />
-                        <Border Grid.Column="1" Background="#202B44" CornerRadius="10" Padding="9,4">
-                            <TextBlock x:Name="FileCountText" FontSize="11" FontWeight="SemiBold" Foreground="#B8C3D8" Text="0 FILE" />
-                        </Border>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Button x:Name="ClearCompletedButton"
+                                    Style="{StaticResource QueueUtilityButton}"
+                                    Margin="0,0,8,0"
+                                    Click="ClearCompletedButton_Click"
+                                    Content="Rimuovi completati"
+                                    Visibility="Collapsed"
+                                    AutomationProperties.Name="Rimuovi i file completati dalla coda"
+                                    AutomationProperties.HelpText="Scorciatoia Ctrl+Maiusc+Canc" />
+                            <Border Background="#202B44" CornerRadius="10" Padding="9,4" VerticalAlignment="Center">
+                                <TextBlock x:Name="FileCountText" FontSize="11" FontWeight="SemiBold" Foreground="#B8C3D8" Text="0 FILE" />
+                            </Border>
+                        </StackPanel>
                     </Grid>
 
                     <Grid Grid.Row="1">
@@ -527,6 +542,7 @@
                             </ComboBox>
 
                             <CheckBox x:Name="PreserveMetadataCheckBox" Margin="0,17,0,0" IsChecked="True" Content="Conserva i metadati quando possibile" AutomationProperties.Name="Conserva i metadati" />
+                            <CheckBox x:Name="OpenOutputOnCompletionCheckBox" Margin="0,11,0,0" IsChecked="False" Content="Apri la cartella al termine" AutomationProperties.Name="Apri la cartella al termine della conversione" />
 
                             <Border x:Name="PreflightBorder" Margin="0,18,0,0" Padding="13" CornerRadius="12" Background="#18253A">
                                 <StackPanel>
@@ -574,13 +590,15 @@
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock x:Name="OverallStatusText" FontSize="12" FontWeight="SemiBold" Text="Aggiungi uno o più file per iniziare" AutomationProperties.LiveSetting="Polite">
                             <TextBlock.RenderTransform>
                                 <TranslateTransform x:Name="OverallStatusTranslate" />
                             </TextBlock.RenderTransform>
                         </TextBlock>
-                        <TextBlock x:Name="OverallPercentText" Grid.Column="1" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="0%" />
+                        <TextBlock x:Name="OverallEtaText" Grid.Column="1" Margin="0,0,14,0" FontSize="11" Foreground="#B8C5DB" Text="" AutomationProperties.Name="Tempo stimato" />
+                        <TextBlock x:Name="OverallPercentText" Grid.Column="2" FontSize="11" Foreground="{StaticResource MutedTextBrush}" Text="0%" />
                     </Grid>
                     <ProgressBar x:Name="OverallProgressBar" Style="{StaticResource ThinProgress}" Margin="0,9,0,0" Height="7" Value="0" AutomationProperties.Name="Avanzamento complessivo" />
                 </StackPanel>

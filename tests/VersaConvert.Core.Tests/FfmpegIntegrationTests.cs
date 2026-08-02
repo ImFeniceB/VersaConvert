@@ -12,7 +12,14 @@ public sealed class FfmpegIntegrationTests : IDisposable
     [Fact]
     public async Task Mp4CanBeConvertedToMp3WhenFfmpegIsAvailable()
     {
-        var toolLocator = new ToolLocator();
+        var repositoryFfmpeg = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..", "..", "..", "..", "..",
+            "vendor",
+            "ffmpeg.exe"));
+        var toolLocator = File.Exists(repositoryFfmpeg)
+            ? new ToolLocator(Path.GetDirectoryName(repositoryFfmpeg))
+            : new ToolLocator();
         var ffmpeg = toolLocator.FindFfmpeg();
         if (ffmpeg is null)
         {

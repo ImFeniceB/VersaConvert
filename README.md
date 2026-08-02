@@ -19,6 +19,9 @@ Il caso d’uso principale — **MP4 → MP3** — funziona direttamente nella b
 - preset intelligenti e impostazioni mostrate solo quando sono rilevanti;
 - preflight con destinazione, collisioni e motori richiesti prima dell'avvio;
 - avanzamento per file, annullamento, apertura dell'output e nuovo tentativo sugli errori;
+- stima del tempo rimanente e apertura automatica opzionale della cartella finale;
+- preferenze ricordate tra un avvio e l'altro;
+- pulizia dei file completati e riordino rapido della coda;
 - scorciatoie da tastiera e feedback visivi rispettosi delle preferenze di Windows;
 - elaborazione interamente locale;
 - singolo eseguibile Windows x64, senza installazione di .NET.
@@ -47,7 +50,7 @@ La matrice completa e le limitazioni note sono in [docs/FORMATI.md](docs/FORMATI
 4. Scegli il formato, la cartella e un preset; il preflight riepiloga il risultato.
 5. Premi **Converti ora**.
 
-Scorciatoie principali: `Ctrl+O` aggiunge file, `Ctrl+Invio` avvia la conversione, `Canc` rimuove il file selezionato ed `Esc` chiude il picker o annulla l'operazione in corso.
+Scorciatoie principali: `Ctrl+O` aggiunge file, `Ctrl+Invio` avvia la conversione, `Canc` rimuove il file selezionato, `Alt+Su/Giù` riordina la coda, `Ctrl+Maiusc+Canc` rimuove i completati ed `Esc` chiude il picker o annulla l'operazione in corso.
 
 Windows potrebbe mostrare un avviso SmartScreen per una build non firmata. Il codice è pubblico e l’hash SHA-256 viene prodotto insieme a ogni release.
 
@@ -55,7 +58,7 @@ Per convertire documenti Word, Excel e PowerPoint è necessario installare [Libr
 
 ## Privacy
 
-I file non lasciano il computer. VersaConvert non contiene account, analytics, pubblicità o telemetria. I processi avviati sono esclusivamente i motori locali indicati nell’interfaccia.
+I file non lasciano il computer. VersaConvert non contiene account, analytics, pubblicità o telemetria. Le sole preferenze dell'interfaccia vengono salvate localmente nella cartella applicativa dell'utente. I processi avviati sono esclusivamente i motori locali indicati nell’interfaccia.
 
 ## Compilazione
 

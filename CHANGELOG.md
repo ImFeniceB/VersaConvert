@@ -2,6 +2,17 @@
 
 Il progetto segue [Semantic Versioning](https://semver.org/).
 
+## 1.4.0 — 2026-08-02
+
+- preferenze di formato, qualità, bitrate, destinazione e collisioni ricordate in locale;
+- stima dinamica del tempo rimanente e durata finale dell'operazione;
+- opzione per aprire automaticamente la cartella dopo almeno una conversione riuscita;
+- comando per rimuovere in blocco i file completati o saltati;
+- riordino della coda tramite `Alt+Su/Giù`;
+- nuove scorciatoie ed etichetta accessibile per il tempo residuo;
+- ingresso dei file, risoluzione degli esiti e uscita dalla coda animate con tempi brevi;
+- motion disattivato con Reduce Motion e per le azioni avviate da tastiera.
+
 ## 1.3.0 — 2026-08-02
 
 - preset Bilanciato, Qualità massima, Dimensione ridotta e Personalizzato;

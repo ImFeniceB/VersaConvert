@@ -6,6 +6,7 @@ VersaConvert separa l’interfaccia Windows dalla logica di conversione. Il prog
 flowchart LR
     UI["Interfaccia WPF"] --> Catalog["FormatCatalog"]
     UI --> Service["ConversionService"]
+    UI --> Prefs["UserPreferencesStore"]
     Catalog --> Matrix["Matrice di compatibilità"]
     Service --> FF["FFmpeg"]
     Service --> Text["Motore testo interno"]
@@ -35,6 +36,10 @@ Avvia i motori senza shell e senza finestra console. Per FFmpeg legge `Duration`
 ### OutputPathResolver
 
 Gestisce tre strategie: rinomina, sovrascrivi e salta. Se ingresso e uscita coincidono, aggiunge `_convertito` e non modifica mai il file sorgente.
+
+### UserPreferencesStore
+
+Salva soltanto le preferenze dell'interfaccia in `%APPDATA%\VersaConvert\settings.json`. La scrittura usa un file temporaneo e una sostituzione atomica; dati assenti, non validi o fuori intervallo vengono riportati a valori sicuri.
 
 ## Build autonoma
 

@@ -7,6 +7,7 @@ using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using Microsoft.Win32;
 using VersaConvert.Core.Models;
 using VersaConvert.Core.Services;
@@ -17,10 +18,16 @@ public partial class MainWindow : Window
 {
     private readonly FormatCatalog _catalog = new();
     private readonly ConversionService _conversionService = new();
+    private readonly UserPreferencesStore _preferencesStore = new();
+    private readonly Stopwatch _conversionStopwatch = new();
     private CancellationTokenSource? _conversionCancellation;
     private ToolStatus _toolStatus = new(false, false, false);
     private bool _isConverting;
     private bool _applyingPreset;
+    private bool _loadingPreferences;
+    private bool _suppressNextAddAnimation;
+    private bool _animateCurrentBatch = true;
+    private bool _isQueueMutationAnimating;
     private IReadOnlyList<ConversionFormat> _availableFormats = [];
     private IReadOnlyList<ConversionFormat> _visibleFormats = [];
     private IReadOnlyList<ConversionJob>? _requestedJobs;
@@ -35,10 +42,7 @@ public partial class MainWindow : Window
         DataContext = this;
         AddHandler(Mouse.PreviewMouseDownEvent, new MouseButtonEventHandler(Window_PreviewMouseDown), handledEventsToo: true);
         AddHandler(Mouse.PreviewMouseUpEvent, new MouseButtonEventHandler(Window_PreviewMouseUp), handledEventsToo: true);
-        OutputDirectoryTextBox.Text = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
-            "VersaConvert");
-        ApplyPreset(PresetKind.Balanced);
+        LoadPreferences();
         UpdateToolStatus();
         UpdateInterfaceState();
     }
@@ -47,6 +51,7 @@ public partial class MainWindow : Window
 
     private void AddFilesButton_Click(object sender, RoutedEventArgs e)
     {
+        var animateEntries = !_suppressNextAddAnimation && !LastInputWasKeyboard;
         var dialog = new OpenFileDialog
         {
             Title = "Scegli i file da convertire",
@@ -57,13 +62,16 @@ public partial class MainWindow : Window
 
         if (dialog.ShowDialog(this) == true)
         {
-            AddPaths(dialog.FileNames);
+            AddPaths(dialog.FileNames, animateEntries);
         }
+
+        _suppressNextAddAnimation = false;
     }
 
-    private void AddPaths(IEnumerable<string> paths)
+    private void AddPaths(IEnumerable<string> paths, bool animateEntries = true)
     {
         var unsupported = new List<string>();
+        var addedJobs = new List<ConversionJob>();
         var added = 0;
         foreach (var path in ExpandPaths(paths))
         {
@@ -78,7 +86,10 @@ public partial class MainWindow : Window
                 continue;
             }
 
-            Jobs.Add(new ConversionJob(path));
+            var job = new ConversionJob(path);
+            job.PropertyChanged += Job_PropertyChanged;
+            Jobs.Add(job);
+            addedJobs.Add(job);
             added++;
         }
 
@@ -97,6 +108,17 @@ public partial class MainWindow : Window
         else if (added > 0)
         {
             OverallStatusText.Text = added == 1 ? "File pronto per la conversione" : $"{added} file aggiunti alla coda";
+        }
+
+        if (animateEntries && AnimationsEnabled)
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Loaded, () =>
+            {
+                for (var index = 0; index < addedJobs.Count; index++)
+                {
+                    AnimateJobEntrance(addedJobs[index], Math.Min(index * 32, 224));
+                }
+            });
         }
     }
 
@@ -145,6 +167,8 @@ public partial class MainWindow : Window
         {
             return;
         }
+
+        var animateBatch = AnimationsEnabled && !LastInputWasKeyboard;
 
         var jobsToRun = _requestedJobs is { } requestedJobs ? requestedJobs.ToArray() : Jobs.ToArray();
         _requestedJobs = null;
@@ -196,11 +220,15 @@ public partial class MainWindow : Window
 
         PrepareJobsForRetry(jobsToRun.Where(job => job.CanRetry));
 
+        _animateCurrentBatch = animateBatch;
         _isConverting = true;
         _conversionCancellation = new CancellationTokenSource();
+        _conversionStopwatch.Restart();
+        OverallEtaText.Text = "Calcolo tempo…";
         SetControlsForConversion(isConverting: true);
 
         var completed = 0;
+        var succeeded = 0;
         var failed = 0;
         var skipped = 0;
         foreach (var job in jobsToRun)
@@ -246,6 +274,7 @@ public partial class MainWindow : Window
                 job.Status = JobStatus.Completed;
                 job.Progress = 100;
                 job.Message = Path.GetFileName(outputPath);
+                succeeded++;
             }
             catch (OperationCanceledException)
             {
@@ -264,12 +293,18 @@ public partial class MainWindow : Window
         }
 
         var wasCancelled = _conversionCancellation.IsCancellationRequested;
+        _conversionStopwatch.Stop();
         _conversionCancellation.Dispose();
         _conversionCancellation = null;
         _isConverting = false;
         SetControlsForConversion(isConverting: false);
         OverallProgressBar.Value = jobsToRun.Length == 0 ? 0 : 100;
         OverallPercentText.Text = jobsToRun.Length == 0 ? "0%" : "100%";
+        OverallEtaText.Text = jobsToRun.Length == 0
+            ? string.Empty
+            : wasCancelled
+                ? $"Interrotto dopo {FormatDuration(_conversionStopwatch.Elapsed)}"
+                : $"Completato in {FormatDuration(_conversionStopwatch.Elapsed)}";
 
         if (wasCancelled)
         {
@@ -286,8 +321,13 @@ public partial class MainWindow : Window
                 : "Tutto fatto — i file sono pronti";
         }
 
-        AnimateCompletionStatus();
+        if (_animateCurrentBatch) AnimateCompletionStatus();
         UpdateInterfaceState();
+        SavePreferences();
+        if (!wasCancelled && succeeded > 0 && OpenOutputOnCompletionCheckBox.IsChecked == true)
+        {
+            OpenOutputDirectory();
+        }
     }
 
     private ConversionOptions ReadOptions()
@@ -309,6 +349,15 @@ public partial class MainWindow : Window
         OverallProgressBar.Value = percent;
         OverallPercentText.Text = $"{percent:0}%";
         OverallStatusText.Text = currentProgress > 0 ? $"Conversione di {fileName}" : $"{completed} di {total} completati";
+        if (percent >= 2 && percent < 100 && _conversionStopwatch.Elapsed.TotalSeconds >= 1)
+        {
+            var remainingSeconds = _conversionStopwatch.Elapsed.TotalSeconds * (100 - percent) / percent;
+            OverallEtaText.Text = $"Circa {FormatDuration(TimeSpan.FromSeconds(remainingSeconds))} rimanenti";
+        }
+        else if (percent >= 100)
+        {
+            OverallEtaText.Text = "Finalizzazione…";
+        }
     }
 
     private void SetControlsForConversion(bool isConverting)
@@ -323,6 +372,7 @@ public partial class MainWindow : Window
         BitrateComboBox.IsEnabled = !isConverting;
         CollisionComboBox.IsEnabled = !isConverting;
         PreserveMetadataCheckBox.IsEnabled = !isConverting;
+        OpenOutputOnCompletionCheckBox.IsEnabled = !isConverting;
         ConvertButton.Visibility = isConverting ? Visibility.Collapsed : Visibility.Visible;
         CancelButton.Visibility = isConverting ? Visibility.Visible : Visibility.Collapsed;
         CancelButton.IsEnabled = isConverting;
@@ -334,6 +384,9 @@ public partial class MainWindow : Window
         EmptyState.Visibility = Jobs.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         FileCountText.Text = Jobs.Count == 1 ? "1 FILE" : $"{Jobs.Count} FILE";
         ClearButton.IsEnabled = Jobs.Count > 0 && !_isConverting;
+        var hasCompletedJobs = Jobs.Any(job => job.Status is JobStatus.Completed or JobStatus.Skipped);
+        ClearCompletedButton.Visibility = hasCompletedJobs && !_isConverting ? Visibility.Visible : Visibility.Collapsed;
+        ClearCompletedButton.IsEnabled = !_isConverting && !_isQueueMutationAnimating;
         FormatPickerButton.IsEnabled = Jobs.Count > 0 && _availableFormats.Count > 0 && !_isConverting;
         var toolIssue = GetToolIssue(Jobs);
         ConvertButton.IsEnabled = Jobs.Count > 0 && _selectedFormat is not null && !_isConverting &&
@@ -364,9 +417,12 @@ public partial class MainWindow : Window
             : (System.Windows.Media.Brush)System.Windows.Application.Current.Resources["MutedTextBrush"];
     }
 
-    private void RemoveJobButton_Click(object sender, RoutedEventArgs e)
+    private async void RemoveJobButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isConverting || sender is not Button { Tag: ConversionJob job }) return;
+        if (AnimationsEnabled && !LastInputWasKeyboard) await AnimateJobExitAsync(job);
+        if (!Jobs.Contains(job)) return;
+        job.PropertyChanged -= Job_PropertyChanged;
         Jobs.Remove(job);
         RefreshFormats();
         UpdateInterfaceState();
@@ -415,12 +471,65 @@ public partial class MainWindow : Window
     private void ClearButton_Click(object sender, RoutedEventArgs e)
     {
         if (_isConverting) return;
+        foreach (var job in Jobs) job.PropertyChanged -= Job_PropertyChanged;
         Jobs.Clear();
         RefreshFormats();
         OverallProgressBar.Value = 0;
         OverallPercentText.Text = "0%";
+        OverallEtaText.Text = string.Empty;
         OverallStatusText.Text = "Aggiungi uno o più file per iniziare";
         UpdateInterfaceState();
+    }
+
+    private async void ClearCompletedButton_Click(object sender, RoutedEventArgs e) =>
+        await RemoveCompletedJobsAsync(animate: AnimationsEnabled && !LastInputWasKeyboard);
+
+    private async Task RemoveCompletedJobsAsync(bool animate)
+    {
+        if (_isConverting || _isQueueMutationAnimating) return;
+        var completedJobs = Jobs
+            .Where(job => job.Status is JobStatus.Completed or JobStatus.Skipped)
+            .ToArray();
+        if (completedJobs.Length == 0) return;
+
+        _isQueueMutationAnimating = true;
+        UpdateInterfaceState();
+        try
+        {
+            if (animate)
+            {
+                await Task.WhenAll(completedJobs.Select(AnimateJobExitAsync));
+            }
+
+            foreach (var job in completedJobs)
+            {
+                job.PropertyChanged -= Job_PropertyChanged;
+                Jobs.Remove(job);
+            }
+
+            RefreshFormats();
+            OverallStatusText.Text = completedJobs.Length == 1
+                ? "1 file completato rimosso dalla coda"
+                : $"{completedJobs.Length} file completati rimossi dalla coda";
+            OverallEtaText.Text = string.Empty;
+        }
+        finally
+        {
+            _isQueueMutationAnimating = false;
+            UpdateInterfaceState();
+        }
+    }
+
+    private void MoveJob(ConversionJob job, int offset)
+    {
+        var currentIndex = Jobs.IndexOf(job);
+        if (currentIndex < 0 || Jobs.Count < 2) return;
+        var targetIndex = Math.Clamp(currentIndex + offset, 0, Jobs.Count - 1);
+        if (currentIndex == targetIndex) return;
+        Jobs.Move(currentIndex, targetIndex);
+        JobsList.SelectedItem = job;
+        JobsList.ScrollIntoView(job);
+        OverallStatusText.Text = $"{job.FileName} spostato in posizione {targetIndex + 1}";
     }
 
     private void BrowseOutputButton_Click(object sender, RoutedEventArgs e)
@@ -438,6 +547,9 @@ public partial class MainWindow : Window
     }
 
     private void OpenOutputButton_Click(object sender, RoutedEventArgs e)
+        => OpenOutputDirectory();
+
+    private void OpenOutputDirectory()
     {
         var directory = OutputDirectoryTextBox.Text.Trim();
         if (string.IsNullOrWhiteSpace(directory)) return;
@@ -478,23 +590,42 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && !_isConverting)
+        var shortcutKey = e.Key == Key.System ? e.SystemKey : e.Key;
+        if (shortcutKey == Key.Delete && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) &&
+            Keyboard.Modifiers.HasFlag(ModifierKeys.Shift) && !_isConverting)
         {
+            _ = RemoveCompletedJobsAsync(animate: false);
+            e.Handled = true;
+            return;
+        }
+
+        if (shortcutKey == Key.O && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && !_isConverting)
+        {
+            _suppressNextAddAnimation = true;
             AddFilesButton_Click(AddFilesButton, new RoutedEventArgs(Button.ClickEvent));
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Enter && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && ConvertButton.IsEnabled)
+        if (shortcutKey == Key.Enter && Keyboard.Modifiers.HasFlag(ModifierKeys.Control) && ConvertButton.IsEnabled)
         {
             ConvertButton_Click(ConvertButton, new RoutedEventArgs(Button.ClickEvent));
             e.Handled = true;
             return;
         }
 
-        if (e.Key == Key.Delete && !_isConverting && Keyboard.FocusedElement is not TextBoxBase &&
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Alt) && shortcutKey is Key.Up or Key.Down &&
+            !_isConverting && JobsList.SelectedItem is ConversionJob jobToMove)
+        {
+            MoveJob(jobToMove, shortcutKey == Key.Up ? -1 : 1);
+            e.Handled = true;
+            return;
+        }
+
+        if (shortcutKey == Key.Delete && !_isConverting && Keyboard.FocusedElement is not TextBoxBase &&
             JobsList.SelectedItem is ConversionJob selectedJob)
         {
+            selectedJob.PropertyChanged -= Job_PropertyChanged;
             Jobs.Remove(selectedJob);
             RefreshFormats();
             UpdateInterfaceState();
@@ -502,7 +633,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (e.Key != Key.Escape) return;
+        if (shortcutKey != Key.Escape) return;
         if (FormatPickerPopup.IsOpen)
         {
             FormatPickerButton.IsChecked = false;
@@ -516,7 +647,67 @@ public partial class MainWindow : Window
         }
     }
 
-    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e) => _conversionCancellation?.Cancel();
+    private void Window_Closing(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        _conversionCancellation?.Cancel();
+        SavePreferences();
+        foreach (var job in Jobs) job.PropertyChanged -= Job_PropertyChanged;
+    }
+
+    private void LoadPreferences()
+    {
+        _loadingPreferences = true;
+        try
+        {
+            var preferences = _preferencesStore.Load();
+            OutputDirectoryTextBox.Text = preferences.OutputDirectory ?? Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
+                "VersaConvert");
+            ApplyPreset(preferences.Preset);
+            if (preferences.Preset == ConversionPreset.Custom)
+            {
+                QualitySlider.Value = preferences.Quality;
+                SelectBitrate(preferences.AudioBitrateKbps);
+            }
+
+            CollisionComboBox.SelectedItem = CollisionComboBox.Items.OfType<ComboBoxItem>()
+                .FirstOrDefault(item => item.Tag?.ToString() == preferences.CollisionBehavior.ToString());
+            PreserveMetadataCheckBox.IsChecked = preferences.PreserveMetadata;
+            OpenOutputOnCompletionCheckBox.IsChecked = preferences.OpenOutputOnCompletion;
+        }
+        finally
+        {
+            _loadingPreferences = false;
+        }
+    }
+
+    private void SavePreferences()
+    {
+        if (_loadingPreferences || PresetComboBox is null) return;
+        var preset = PresetComboBox.SelectedItem is ComboBoxItem { Tag: string presetTag } &&
+                     Enum.TryParse<ConversionPreset>(presetTag, out var parsedPreset)
+            ? parsedPreset
+            : ConversionPreset.Custom;
+        try
+        {
+            _preferencesStore.Save(new UserPreferences
+            {
+                OutputDirectory = OutputDirectoryTextBox.Text,
+                Preset = preset,
+                Quality = (int)Math.Round(QualitySlider.Value),
+                AudioBitrateKbps = BitrateComboBox.SelectedItem is ComboBoxItem bitrateItem
+                    ? int.Parse(bitrateItem.Tag!.ToString()!)
+                    : 192,
+                CollisionBehavior = GetSelectedCollisionBehavior(),
+                PreserveMetadata = PreserveMetadataCheckBox.IsChecked == true,
+                OpenOutputOnCompletion = OpenOutputOnCompletionCheckBox.IsChecked == true
+            });
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            Debug.WriteLine($"Impossibile salvare le preferenze: {exception.Message}");
+        }
+    }
 
     private void QualitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
@@ -537,13 +728,13 @@ public partial class MainWindow : Window
     {
         if (_applyingPreset || PresetComboBox is null || QualitySlider is null || BitrateComboBox is null) return;
         if (PresetComboBox.SelectedItem is not ComboBoxItem { Tag: string presetTag } ||
-            !Enum.TryParse<PresetKind>(presetTag, out var preset)) return;
+            !Enum.TryParse<ConversionPreset>(presetTag, out var preset)) return;
 
         ApplyPreset(preset);
         UpdatePreflight();
     }
 
-    private void ApplyPreset(PresetKind preset)
+    private void ApplyPreset(ConversionPreset preset)
     {
         if (PresetComboBox is null || QualitySlider is null || BitrateComboBox is null) return;
         _applyingPreset = true;
@@ -552,22 +743,22 @@ public partial class MainWindow : Window
             PresetComboBox.SelectedIndex = (int)preset;
             switch (preset)
             {
-                case PresetKind.Balanced:
+                case ConversionPreset.Balanced:
                     QualitySlider.Value = 75;
                     SelectBitrate(192);
                     PresetDescriptionText.Text = "Un buon equilibrio tra qualità e dimensione.";
                     break;
-                case PresetKind.Maximum:
+                case ConversionPreset.Maximum:
                     QualitySlider.Value = 92;
                     SelectBitrate(320);
                     PresetDescriptionText.Text = "Più dettaglio, con file più grandi e conversioni più lunghe.";
                     break;
-                case PresetKind.Compact:
+                case ConversionPreset.Compact:
                     QualitySlider.Value = 55;
                     SelectBitrate(128);
                     PresetDescriptionText.Text = "Riduce lo spazio occupato per condivisioni rapide.";
                     break;
-                case PresetKind.Custom:
+                case ConversionPreset.Custom:
                     PresetDescriptionText.Text = "Le impostazioni sono state regolate manualmente.";
                     break;
             }
@@ -581,15 +772,15 @@ public partial class MainWindow : Window
     private void SelectBitrate(int bitrate)
     {
         var item = BitrateComboBox.Items.OfType<ComboBoxItem>()
-            .First(candidate => candidate.Tag?.ToString() == bitrate.ToString());
+            .MinBy(candidate => Math.Abs(int.Parse(candidate.Tag!.ToString()!) - bitrate));
         BitrateComboBox.SelectedItem = item;
     }
 
     private void MarkPresetAsCustom()
     {
-        if (_applyingPreset || PresetComboBox is null || PresetDescriptionText is null || PresetComboBox.SelectedIndex == (int)PresetKind.Custom) return;
+        if (_applyingPreset || _loadingPreferences || PresetComboBox is null || PresetDescriptionText is null || PresetComboBox.SelectedIndex == (int)ConversionPreset.Custom) return;
         _applyingPreset = true;
-        PresetComboBox.SelectedIndex = (int)PresetKind.Custom;
+        PresetComboBox.SelectedIndex = (int)ConversionPreset.Custom;
         PresetDescriptionText.Text = "Le impostazioni sono state regolate manualmente.";
         _applyingPreset = false;
     }
@@ -605,7 +796,26 @@ public partial class MainWindow : Window
 
         QualitySettingsPanel.Visibility = qualityRelevant ? Visibility.Visible : Visibility.Collapsed;
         BitrateSettingsPanel.Visibility = bitrateRelevant ? Visibility.Visible : Visibility.Collapsed;
-        PresetSettingsPanel.Visibility = qualityRelevant || bitrateRelevant ? Visibility.Visible : Visibility.Collapsed;
+        SetContextPanelVisibility(PresetSettingsPanel, qualityRelevant || bitrateRelevant);
+    }
+
+    private static void SetContextPanelVisibility(FrameworkElement panel, bool visible)
+    {
+        if (!visible)
+        {
+            panel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        var wasCollapsed = panel.Visibility != Visibility.Visible;
+        panel.Visibility = Visibility.Visible;
+        if (!wasCollapsed || !AnimationsEnabled || LastInputWasKeyboard) return;
+
+        var translate = GetOrCreateTranslateTransform(panel);
+        panel.Opacity = 1;
+        translate.Y = 0;
+        panel.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(0.45, 1, 170, FillBehavior.Stop));
+        translate.BeginAnimation(TranslateTransform.YProperty, CreateAnimation(5, 0, 170, FillBehavior.Stop));
     }
 
     private void UpdatePreflight(string? knownToolIssue = null)
@@ -921,6 +1131,75 @@ public partial class MainWindow : Window
         OverallStatusTranslate.BeginAnimation(TranslateTransform.YProperty, CreateAnimation(6, 0, 220, FillBehavior.Stop));
     }
 
+    private void Job_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!_animateCurrentBatch || !AnimationsEnabled || e.PropertyName != nameof(ConversionJob.Status) ||
+            sender is not ConversionJob { Status: JobStatus.Completed or JobStatus.Failed or JobStatus.Cancelled or JobStatus.Skipped } job)
+        {
+            return;
+        }
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Render, () => AnimateJobResolution(job));
+    }
+
+    private void AnimateJobEntrance(ConversionJob job, int delayMilliseconds)
+    {
+        if (JobsList.ItemContainerGenerator.ContainerFromItem(job) is not ListViewItem item) return;
+        var translate = GetOrCreateTranslateTransform(item);
+        item.BeginAnimation(UIElement.OpacityProperty, null);
+        translate.BeginAnimation(TranslateTransform.XProperty, null);
+        item.Opacity = 0.42;
+        translate.X = -14;
+
+        var fade = CreateAnimation(null, 1, 210, FillBehavior.Stop);
+        var slide = CreateAnimation(null, 0, 210, FillBehavior.Stop);
+        fade.BeginTime = TimeSpan.FromMilliseconds(delayMilliseconds);
+        slide.BeginTime = fade.BeginTime;
+        fade.Completed += (_, _) =>
+        {
+            item.Opacity = 1;
+            translate.X = 0;
+            item.BeginAnimation(UIElement.OpacityProperty, null);
+            translate.BeginAnimation(TranslateTransform.XProperty, null);
+        };
+        item.BeginAnimation(UIElement.OpacityProperty, fade);
+        translate.BeginAnimation(TranslateTransform.XProperty, slide);
+    }
+
+    private void AnimateJobResolution(ConversionJob job)
+    {
+        if (JobsList.ItemContainerGenerator.ContainerFromItem(job) is not ListViewItem item) return;
+        var translate = GetOrCreateTranslateTransform(item);
+        item.Opacity = 1;
+        translate.X = 0;
+        item.BeginAnimation(UIElement.OpacityProperty, CreateAnimation(0.68, 1, 180, FillBehavior.Stop));
+        translate.BeginAnimation(TranslateTransform.XProperty, CreateAnimation(6, 0, 180, FillBehavior.Stop));
+    }
+
+    private Task AnimateJobExitAsync(ConversionJob job)
+    {
+        if (!AnimationsEnabled || JobsList.ItemContainerGenerator.ContainerFromItem(job) is not ListViewItem item)
+        {
+            return Task.CompletedTask;
+        }
+
+        var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var translate = GetOrCreateTranslateTransform(item);
+        var fade = CreateAnimation(null, 0, 110);
+        fade.Completed += (_, _) => completion.TrySetResult();
+        item.BeginAnimation(UIElement.OpacityProperty, fade);
+        translate.BeginAnimation(TranslateTransform.YProperty, CreateAnimation(null, -7, 110));
+        return completion.Task;
+    }
+
+    private static TranslateTransform GetOrCreateTranslateTransform(UIElement element)
+    {
+        if (element.RenderTransform is TranslateTransform translate) return translate;
+        translate = new TranslateTransform();
+        element.RenderTransform = translate;
+        return translate;
+    }
+
     private void ShowDropFeedback()
     {
         var wasVisible = DropFeedbackOverlay.Visibility == Visibility.Visible;
@@ -1005,17 +1284,19 @@ public partial class MainWindow : Window
         return animation;
     }
 
+    private static string FormatDuration(TimeSpan duration)
+    {
+        if (duration.TotalHours >= 1) return $"{(int)duration.TotalHours} h {duration.Minutes:00} min";
+        if (duration.TotalMinutes >= 1) return $"{(int)duration.TotalMinutes} min {duration.Seconds:00} s";
+        return $"{Math.Max(1, (int)Math.Ceiling(duration.TotalSeconds))} s";
+    }
+
+    private static bool LastInputWasKeyboard => InputManager.Current.MostRecentInputDevice is KeyboardDevice;
+
     private sealed record FormatPickerItem(ConversionFormat Format, bool IsSelected)
     {
         public string DisplayExtension => Format.DisplayExtension;
         public string Tooltip => $"{Format.DisplayName} — {Format.Description}";
     }
 
-    private enum PresetKind
-    {
-        Balanced,
-        Maximum,
-        Compact,
-        Custom
-    }
 }
